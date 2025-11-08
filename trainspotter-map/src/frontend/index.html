@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trainspotter Map</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="js/overpass-client.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/main.js"></script>
+</head>
+<body>
+    <div id="map" style="height: 600px;"></div>
+    <div id="controls">
+        <h2>Trainspotter Controls</h2>
+        <button id="save-travels">Save Travels</button>
+        <button id="export-geojson">Export to GeoJSON</button>
+        <button id="share-link">Share Link</button>
+    </div>
+    <script>
+        // Initialize map and other functionalities
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+            setupEventListeners();
+        });
+    </script>
+</body>
+</html>
