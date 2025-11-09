@@ -1,4 +1,8 @@
 # Trainspotter
+* version 0.1 https://salgo60.github.io/Trainspotter/index.html
+
+----
+
 Test spara på resta järnvägar
 
 göra en personlig “trainspotting”-karta – alltså en karta där du kan markera vilka linjer, stationer eller tågtyper du åkt med eller sett
