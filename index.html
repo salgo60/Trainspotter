@@ -231,4 +231,20 @@ function addLoco(){
 }
 function renderLocos(){
   const list=document.getElementById("locoList");
-  const locos=JSON.parse(localStorage.getItem
+  const locos=JSON.parse(localStorage.getItem('myLocos')||'[]');
+  list.innerHTML=locos.length?locos.map(l=>`<li>${l}</li>`).join(''):"<li><i>Inga sparade ännu</i></li>";
+}
+
+// === Legend ===
+const legend=L.control({position:'bottomleft'});
+legend.onAdd=function(){
+  const div=L.DomUtil.create('div','legend');
+  div.innerHTML=`<b>Förklaring</b><br>
+    <span style="background:gray"></span>Ej åkt<br>
+    <span style="background:blue"></span>Åkt`;
+  return div;
+};
+legend.addTo(map);
+</script>
+</body>
+</html>
