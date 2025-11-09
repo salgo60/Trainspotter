@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mina åkta järnvägar</title>
+  <title>Mina åkta järnvägar med Wikidata</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -21,65 +21,106 @@
   <div id="map"></div>
 
   <script>
-    // Initiera kartan
     const map = L.map('map').setView([60.0, 16.5], 6);
 
-    // Bakgrund: OpenRailwayMap
     L.tileLayer('https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openrailwaymap.org/">OpenRailwayMap</a> & OSM contributors'
     }).addTo(map);
 
-    // Lager för järnvägar
     const railLayer = L.layerGroup().addTo(map);
     const traveledLayer = L.layerGroup().addTo(map);
 
-    // Hämta järnvägslinjer från Overpass API (Sverige)
-    const query = `
+    // ===== 1️⃣ Hämta svenska järnvägar från OSM =====
+    const overpassQuery = `
       [out:json][timeout:60];
       area["name"="Sweden"]->.searchArea;
-      way["railway"="rail"](area.searchArea);
+      (
+        relation["railway"="rail"](area.searchArea);
+        way["railway"="rail"](area.searchArea);
+      );
       out geom;
     `;
 
-    fetch("https://overpass-api.de/api/interpreter", {
-      method: "POST",
-      body: query
-    })
-      .then(res => res.json())
-      .then(data => {
-        data.elements.forEach(el => {
-          if (el.type === "way" && el.geometry) {
-            const coords = el.geometry.map(p => [p.lat, p.lon]);
-            const line = L.polyline(coords, { color: 'gray', weight: 3, opacity: 0.6 }).addTo(railLayer);
-
-            line.bindPopup(`
-              <b>OSM-id:</b> ${el.id}<br>
-              <button onclick="markAsTraveled(${el.id})">Markera som åkt</button>
-            `);
-
-            line.osm_id = el.id; // spara ID för referens
-          }
-        });
-      })
-      .catch(err => {
-        console.error("Fel vid hämtning av järnvägar:", err);
+    async function fetchOSM() {
+      const res = await fetch("https://overpass-api.de/api/interpreter", {
+        method: "POST",
+        body: overpassQuery
       });
+      const data = await res.json();
+      console.log("OSM-data:", data);
+      return data.elements;
+    }
 
-    // Funktion för att markera linje som åkt
+    // ===== 2️⃣ Hämta Wikidata-karta (OSM→Wikidata) =====
+    async function fetchWikidataMap() {
+      const query = `
+        SELECT ?item ?itemLabel ?osmid ?wp
+        WHERE {
+          ?item wdt:P31 wd:Q728937;   # railway line
+                wdt:P17 wd:Q34;       # Sweden
+                wdt:P402|wdt:P10689 ?osmid.
+          OPTIONAL {
+            ?wp schema:about ?item;
+                schema:isPartOf <https://sv.wikipedia.org/>.
+          }
+          SERVICE wikibase:label { bd:serviceParam wikibase:language "sv,en". }
+        }
+      `;
+      const url = "https://query.wikidata.org/sparql?format=json&query=" + encodeURIComponent(query);
+      const res = await fetch(url);
+      const json = await res.json();
+      const map = {};
+      json.results.bindings.forEach(b => {
+        const osm = b.osmid.value;
+        map[osm] = {
+          label: b.itemLabel?.value || "Okänd linje",
+          item: b.item.value,
+          wp: b.wp?.value || null
+        };
+      });
+      console.log("Wikidata-mappning:", map);
+      return map;
+    }
+
+    // ===== 3️⃣ Huvudlogik =====
+    (async function init() {
+      const [osmElements, wdMap] = await Promise.all([fetchOSM(), fetchWikidataMap()]);
+      const traveled = JSON.parse(localStorage.getItem('traveledLines') || '[]');
+
+      osmElements.forEach(el => {
+        if (!el.geometry) return;
+        const coords = el.geometry.map(p => [p.lat, p.lon]);
+        const color = traveled.includes(el.id) ? 'blue' : 'gray';
+        const line = L.polyline(coords, { color, weight: 3, opacity: 0.7 }).addTo(railLayer);
+        line.osm_id = el.id;
+
+        const wd = wdMap[el.id?.toString()];
+        const name = wd ? wd.label : "Okänd järnväg";
+        const wdLink = wd ? `<a href="${wd.item}" target="_blank">Wikidata</a>` : "";
+        const wpLink = wd?.wp ? `<a href="${wd.wp}" target="_blank">Wikipedia</a>` : "";
+
+        line.bindPopup(`
+          <b>${name}</b><br>
+          ${wpLink} ${wdLink}<br>
+          <small>OSM-id: ${el.id}</small><br>
+          <button onclick="markAsTraveled(${el.id})">Markera som åkt</button>
+        `);
+      });
+    })();
+
+    // ===== 4️⃣ Markera som åkt =====
     function markAsTraveled(osmId) {
-      // hitta linjen i railLayer
       railLayer.eachLayer(layer => {
         if (layer.osm_id === osmId) {
           const latlngs = layer.getLatLngs();
           L.polyline(latlngs, { color: 'blue', weight: 4 }).addTo(traveledLayer);
-          map.closePopup();
           saveTraveled(osmId);
         }
       });
+      map.closePopup();
     }
 
-    // Spara åkta linjer i localStorage
     function saveTraveled(osmId) {
       const traveled = JSON.parse(localStorage.getItem('traveledLines') || '[]');
       if (!traveled.includes(osmId)) {
@@ -88,15 +129,7 @@
       }
     }
 
-    // Ladda tidigare sparade linjer
-    function loadTraveled() {
-      const traveled = JSON.parse(localStorage.getItem('traveledLines') || '[]');
-      console.log("Tidigare åkta linjer:", traveled);
-    }
-
-    loadTraveled();
-
-    // Legend
+    // ===== 5️⃣ Legend =====
     const legend = L.control({ position: 'bottomleft' });
     legend.onAdd = function(map) {
       const div = L.DomUtil.create('div', 'legend');
