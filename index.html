@@ -10,17 +10,35 @@
   <style>
     html, body { height: 100%; margin: 0; }
     #map { height: 100%; width: 100%; }
-    .legend {
+    .legend, .infobox {
       background: white; padding: 8px; border-radius: 8px;
       font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
     .legend span { display: inline-block; width: 15px; height: 15px; margin-right: 5px; }
+    .infobox {
+      position: absolute;
+      top: 10px; right: 10px;
+      z-index: 1000;
+      text-align: right;
+      line-height: 1.4em;
+    }
+    .infobox small {
+      color: #555;
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
+  <!-- Infobox visas över kartan -->
+  <div class="infobox" id="infobox">
+    <b>Järnvägskarta</b><br>
+    Version: <span id="version">1.1</span><br>
+    <small>Senast sparad: <span id="lastSaved">–</span></small>
+  </div>
+
   <script>
+    const VERSION = "1.1";
     const map = L.map('map').setView([60.0, 16.5], 6);
 
     L.tileLayer('https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png', {
@@ -52,7 +70,7 @@
       return data.elements;
     }
 
-    // ===== 2️⃣ Hämta Wikidata-karta (OSM→Wikidata) =====
+    // ===== 2️⃣ Hämta Wikidata-mappning =====
     async function fetchWikidataMap() {
       const query = `
         SELECT ?item ?itemLabel ?osmid ?wp
@@ -85,6 +103,9 @@
 
     // ===== 3️⃣ Huvudlogik =====
     (async function init() {
+      document.getElementById("version").textContent = VERSION;
+      updateLastSaved();
+
       const [osmElements, wdMap] = await Promise.all([fetchOSM(), fetchWikidataMap()]);
       const traveled = JSON.parse(localStorage.getItem('traveledLines') || '[]');
 
@@ -127,9 +148,18 @@
         traveled.push(osmId);
         localStorage.setItem('traveledLines', JSON.stringify(traveled));
       }
+      const now = new Date().toISOString().split("T")[0];
+      localStorage.setItem('lastSaved', now);
+      updateLastSaved();
     }
 
-    // ===== 5️⃣ Legend =====
+    // ===== 5️⃣ Visa datum i infobox =====
+    function updateLastSaved() {
+      const last = localStorage.getItem('lastSaved');
+      document.getElementById('lastSaved').textContent = last ? last : '–';
+    }
+
+    // ===== 6️⃣ Legend =====
     const legend = L.control({ position: 'bottomleft' });
     legend.onAdd = function(map) {
       const div = L.DomUtil.create('div', 'legend');
