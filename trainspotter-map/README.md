@@ -71,3 +71,13 @@ Contributions are welcome! Please submit a pull request or open an issue for any
 
 ## License
 This project is licensed under the MIT License. See the LICENSE file for details.
+
+
+## Notebook 
+
+<img width="1282" height="359" alt="image" src="https://github.com/user-attachments/assets/5bef1539-2944-494f-acce-3e91d6718b22" />
+
+<img width="1178" height="429" alt="image" src="https://github.com/user-attachments/assets/a87e0e20-9e33-4108-8a60-26fd4050befc" />
+
+
+
