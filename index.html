@@ -33,23 +33,41 @@
   <!-- Infobox visas över kartan -->
   <div class="infobox" id="infobox">
     <b>Järnvägskarta</b><br>
-    Version: <span id="version">1.1</span><br>
+    Version: <span id="version">1.2</span><br>
     <small>Senast sparad: <span id="lastSaved">–</span></small>
   </div>
 
   <script>
-    const VERSION = "1.1";
-    const map = L.map('map').setView([60.0, 16.5], 6);
+    const VERSION = "1.2";
+    const map = L.map('map', { center: [60.0, 16.5], zoom: 6 });
 
-    L.tileLayer('https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openrailwaymap.org/">OpenRailwayMap</a> & OSM contributors'
-    }).addTo(map);
+    // ===== 🗺️ Baslager =====
+    const baselayers = {
+      "OpenRailwayMap": L.tileLayer('https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openrailwaymap.org/">OpenRailwayMap</a> & OSM'
+      }),
+      "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a>'
+      }),
+      "OSM Topo": L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        maxZoom: 17,
+        attribution: '&copy; <a href="https://opentopomap.org">OpenTopoMap</a>'
+      }),
+      "Satellit (ESRI)": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '&copy; <a href="https://www.esri.com/">Esri</a>'
+      })
+    };
 
+    // Standard-bakgrund
+    baselayers["OpenRailwayMap"].addTo(map);
+
+    // Lager för järnvägar
     const railLayer = L.layerGroup().addTo(map);
     const traveledLayer = L.layerGroup().addTo(map);
 
-    // ===== 1️⃣ Hämta svenska järnvägar från OSM =====
+    // ===== OSM + Wikidata =====
     const overpassQuery = `
       [out:json][timeout:60];
       area["name"="Sweden"]->.searchArea;
@@ -66,17 +84,15 @@
         body: overpassQuery
       });
       const data = await res.json();
-      console.log("OSM-data:", data);
       return data.elements;
     }
 
-    // ===== 2️⃣ Hämta Wikidata-mappning =====
     async function fetchWikidataMap() {
       const query = `
         SELECT ?item ?itemLabel ?osmid ?wp
         WHERE {
-          ?item wdt:P31 wd:Q728937;   # railway line
-                wdt:P17 wd:Q34;       # Sweden
+          ?item wdt:P31 wd:Q728937;
+                wdt:P17 wd:Q34;
                 wdt:P402|wdt:P10689 ?osmid.
           OPTIONAL {
             ?wp schema:about ?item;
@@ -97,11 +113,9 @@
           wp: b.wp?.value || null
         };
       });
-      console.log("Wikidata-mappning:", map);
       return map;
     }
 
-    // ===== 3️⃣ Huvudlogik =====
     (async function init() {
       document.getElementById("version").textContent = VERSION;
       updateLastSaved();
@@ -128,9 +142,15 @@
           <button onclick="markAsTraveled(${el.id})">Markera som åkt</button>
         `);
       });
+
+      // Lägg till kontroll för bas- och överlager
+      L.control.layers(baselayers, {
+        "Järnvägar (ej åkta)": railLayer,
+        "Åkta linjer": traveledLayer
+      }).addTo(map);
     })();
 
-    // ===== 4️⃣ Markera som åkt =====
+    // ===== Markera som åkt =====
     function markAsTraveled(osmId) {
       railLayer.eachLayer(layer => {
         if (layer.osm_id === osmId) {
@@ -153,13 +173,13 @@
       updateLastSaved();
     }
 
-    // ===== 5️⃣ Visa datum i infobox =====
+    // ===== Datum i infobox =====
     function updateLastSaved() {
       const last = localStorage.getItem('lastSaved');
       document.getElementById('lastSaved').textContent = last ? last : '–';
     }
 
-    // ===== 6️⃣ Legend =====
+    // ===== Legend =====
     const legend = L.control({ position: 'bottomleft' });
     legend.onAdd = function(map) {
       const div = L.DomUtil.create('div', 'legend');
@@ -171,7 +191,6 @@
       return div;
     };
     legend.addTo(map);
-
   </script>
 </body>
 </html>
