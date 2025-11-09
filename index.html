@@ -1,212 +1,234 @@
 <!DOCTYPE html>
 <html lang="sv">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mina åkta järnvägar & lok</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <style>
-    html, body { height:100%; margin:0; }
-    #map { height:100%; width:100%; }
-    .legend, .infobox, .map-switcher {
-      background:white; padding:8px; border-radius:8px;
-      font-size:14px; box-shadow:0 2px 4px rgba(0,0,0,0.2);
-    }
-    .legend span { display:inline-block; width:15px; height:15px; margin-right:5px; }
-    .infobox {
-      position:absolute; top:10px; right:10px; z-index:1000;
-      text-align:right; line-height:1.4em; width:200px;
-    }
-    .map-switcher {
-      position:absolute; top:10px; left:10px; z-index:1000;
-      display:flex; flex-direction:column; gap:5px;
-    }
-    .map-btn {
-      background:#eee; border:none; border-radius:6px;
-      padding:5px 8px; cursor:pointer; font-size:13px;
-      display:flex; align-items:center; gap:4px;
-    }
-    .map-btn:hover { background:#ddd; }
-    .map-btn.active { background:#007bff; color:white; }
-    .infobox small { color:#555; }
-    .infobox button {
-      margin-top:5px; background:#007bff; color:white; border:none;
-      padding:4px 8px; border-radius:5px; cursor:pointer;
-    }
-    .infobox button:hover { background:#0056b3; }
-    .infobox select { width:100%; margin-top:5px; }
-    #locoList { list-style:none; padding:0; margin:5px 0 0 0; text-align:left; }
-    #locoList li { background:#f5f5f5; margin-bottom:2px; padding:2px 4px; border-radius:4px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Mina åkta järnvägar & lok</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+html,body{height:100%;margin:0}
+#map{height:100%;width:100%}
+.legend,.infobox,.map-switcher{
+  background:white;padding:8px;border-radius:8px;font-size:14px;
+  box-shadow:0 2px 4px rgba(0,0,0,0.2)
+}
+.legend span{display:inline-block;width:15px;height:15px;margin-right:5px}
+.infobox{
+  position:absolute;top:10px;right:10px;z-index:1000;
+  text-align:right;line-height:1.4em;width:210px
+}
+.map-switcher{
+  position:absolute;top:10px;left:10px;z-index:1000;
+  display:flex;flex-direction:column;gap:5px
+}
+.map-btn{
+  background:#eee;border:none;border-radius:6px;padding:5px 8px;
+  cursor:pointer;font-size:13px;display:flex;align-items:center;gap:4px
+}
+.map-btn:hover{background:#ddd}
+.map-btn.active{background:#007bff;color:white}
+.infobox small{color:#555}
+.infobox button{
+  margin-top:5px;background:#007bff;color:white;border:none;
+  padding:4px 8px;border-radius:5px;cursor:pointer
+}
+.infobox button:hover{background:#0056b3}
+.infobox select{width:100%;margin-top:5px}
+#locoList{list-style:none;padding:0;margin:5px 0 0;text-align:left}
+#locoList li{background:#f5f5f5;margin-bottom:2px;padding:2px 4px;border-radius:4px}
+#mapStatus{font-size:12px;color:#333;margin-top:4px;display:block}
+</style>
 </head>
 <body>
-  <div id="map"></div>
+<div id="map"></div>
 
-  <!-- Kartväljare -->
-  <div class="map-switcher" id="mapSwitcher">
-    <button class="map-btn active" data-map="railway">🚆 Railway</button>
-    <button class="map-btn" data-map="osm">🗺️ OSM</button>
-    <button class="map-btn" data-map="topo">🏔️ Topo</button>
-    <button class="map-btn" data-map="sat">🛰️ Satellit</button>
-  </div>
+<!-- Kartväljare -->
+<div class="map-switcher" id="mapSwitcher">
+  <button class="map-btn active" data-map="railway">🚆 Railway</button>
+  <button class="map-btn" data-map="osm">🗺️ OSM</button>
+  <button class="map-btn" data-map="topo">🏔️ Topo</button>
+  <button class="map-btn" data-map="sat">🛰️ Satellit</button>
+</div>
 
-  <!-- Infobox -->
-  <div class="infobox" id="infobox">
-    <b>Järnvägskarta</b><br>
-    Version: <span id="version">1.5</span><br>
-    <small>Senast sparad: <span id="lastSaved">–</span></small><br>
-    <button id="exportBtn">Exportera GeoJSON</button>
-    <hr>
-    <b>Åkta lok</b><br>
-    <select id="lokSelector">
-      <option value="">Välj loktyp...</option>
-      <option value="Rc6">Rc6 – el-lok</option>
-      <option value="X2000">X2000 – snabbtåg</option>
-      <option value="Y1">Y1 – dieselmotorvagn</option>
-      <option value="Td">Td – växellok</option>
-      <option value="X55">X55 – SJ 3000</option>
-    </select>
-    <button id="addLocoBtn">Lägg till</button>
-    <ul id="locoList"></ul>
-  </div>
+<!-- Infobox -->
+<div class="infobox" id="infobox">
+  <b>Järnvägskarta</b><br>
+  Version: <span id="version">1.6</span><br>
+  <small>Senast sparad: <span id="lastSaved">–</span></small><br>
+  <button id="exportBtn">Exportera GeoJSON</button>
+  <span id="mapStatus">Bakgrund: OpenRailwayMap (OK)</span>
+  <hr>
+  <b>Åkta lok</b><br>
+  <select id="lokSelector">
+    <option value="">Välj loktyp...</option>
+    <option value="Rc6">Rc6 – el-lok</option>
+    <option value="X2000">X2000 – snabbtåg</option>
+    <option value="Y1">Y1 – dieselmotorvagn</option>
+    <option value="Td">Td – växellok</option>
+    <option value="X55">X55 – SJ 3000</option>
+  </select>
+  <button id="addLocoBtn">Lägg till</button>
+  <ul id="locoList"></ul>
+</div>
 
-  <script>
-    const VERSION="1.5";
-    const map=L.map('map',{center:[60.0,16.5],zoom:6});
+<script>
+const VERSION="1.6";
+const map=L.map('map',{center:[60.0,16.5],zoom:6});
+const statusEl=document.getElementById("mapStatus");
 
-    // === Baslager ===
-    const baselayers={
-      railway:L.tileLayer('https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png',{
-        maxZoom:19,attribution:'&copy; <a href="https://openrailwaymap.org/">OpenRailwayMap</a> & OSM'
-      }),
-      osm:L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-        maxZoom:19,attribution:'&copy; OpenStreetMap'
-      }),
-      topo:L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{
-        maxZoom:17,attribution:'&copy; OpenTopoMap'
-      }),
-      sat:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
-        attribution:'&copy; Esri'
-      })
-    };
-    baselayers.railway.addTo(map);
+// === Baslager ===
+const baselayers={
+  railway:L.tileLayer('https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png',{
+    maxZoom:19,
+    attribution:'&copy; <a href="https://openrailwaymap.org/">OpenRailwayMap</a> & OSM'
+  }),
+  osm:L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom:19,attribution:'&copy; OpenStreetMap'
+  }),
+  topo:L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{
+    maxZoom:17,attribution:'&copy; OpenTopoMap'
+  }),
+  sat:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
+    attribution:'&copy; Esri'
+  })
+};
 
-    const railLayer=L.layerGroup().addTo(map);
-    const traveledLayer=L.layerGroup().addTo(map);
+// Lägg till standardlager
+baselayers.railway.addTo(map);
+baselayers.railway.on('tileerror',()=>{
+  console.warn("OpenRailwayMap misslyckades – växlar till OSM");
+  map.removeLayer(baselayers.railway);
+  baselayers.osm.addTo(map);
+  updateStatus("Bakgrund: OSM (fallback)");
+});
 
-    // === Karta-knappar ===
-    document.querySelectorAll(".map-btn").forEach(btn=>{
-      btn.addEventListener("click",()=>{
-        document.querySelectorAll(".map-btn").forEach(b=>b.classList.remove("active"));
-        btn.classList.add("active");
-        Object.values(baselayers).forEach(layer=>map.removeLayer(layer));
-        baselayers[btn.dataset.map].addTo(map);
-      });
-    });
+const railLayer=L.layerGroup().addTo(map);
+const traveledLayer=L.layerGroup().addTo(map);
 
-    // === Overpass + Wikidata ===
-    const overpassQuery=`[out:json][timeout:60];
-      area["name"="Sweden"]->.searchArea;
-      (relation["railway"="rail"](area.searchArea);
-       way["railway"="rail"](area.searchArea););
-      out geom;`;
+// === Kartväljare ===
+document.querySelectorAll(".map-btn").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    document.querySelectorAll(".map-btn").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    Object.values(baselayers).forEach(layer=>map.removeLayer(layer));
+    baselayers[btn.dataset.map].addTo(map);
+    updateStatus(`Bakgrund: ${btn.textContent.trim()}`);
+  });
+});
+function updateStatus(text){statusEl.textContent=text;}
 
-    async function fetchOSM(){
-      const res=await fetch("https://overpass-api.de/api/interpreter",{method:"POST",body:overpassQuery});
-      const data=await res.json();
-      return data.elements;
+// === Overpass + Wikidata ===
+const overpassQuery=`[out:json][timeout:60];
+  area["name"="Sweden"]->.searchArea;
+  (relation["railway"="rail"](area.searchArea);
+   way["railway"="rail"](area.searchArea););
+  out geom;`;
+
+async function fetchOSM(){
+  const res=await fetch("https://overpass-api.de/api/interpreter",{method:"POST",body:overpassQuery});
+  return (await res.json()).elements;
+}
+
+async function fetchWikidataMap(){
+  const q=`SELECT ?item ?itemLabel ?osmid ?wp WHERE{
+    ?item wdt:P31 wd:Q728937; wdt:P17 wd:Q34;
+          wdt:P402|wdt:P10689 ?osmid.
+    OPTIONAL{?wp schema:about ?item;schema:isPartOf <https://sv.wikipedia.org/>.}
+    SERVICE wikibase:label{bd:serviceParam wikibase:language "sv,en".}
+  }`;
+  const url="https://query.wikidata.org/sparql?format=json&query="+encodeURIComponent(q);
+  const res=await fetch(url);
+  const json=await res.json();
+  const map={};
+  json.results.bindings.forEach(b=>{
+    const osm=b.osmid.value;
+    map[osm]={label:b.itemLabel?.value||"Okänd linje",item:b.item.value,wp:b.wp?.value||null};
+  });
+  return map;
+}
+
+(async function init(){
+  document.getElementById("version").textContent=VERSION;
+  updateLastSaved();renderLocos();
+  const [osmElements,wdMap]=await Promise.all([fetchOSM(),fetchWikidataMap()]);
+  const traveled=JSON.parse(localStorage.getItem('traveledLines')||'[]');
+
+  osmElements.forEach(el=>{
+    if(!el.geometry)return;
+    const coords=el.geometry.map(p=>[p.lat,p.lon]);
+    const color=traveled.includes(el.id)?'blue':'gray';
+    const line=L.polyline(coords,{color,weight:3,opacity:0.7}).addTo(railLayer);
+    line.osm_id=el.id;line.osm_geometry=coords;
+    const wd=wdMap[el.id?.toString()];
+    const name=wd?wd.label:"Okänd järnväg";
+    const wdLink=wd?`<a href="${wd.item}" target="_blank">Wikidata</a>`:"";
+    const wpLink=wd?.wp?`<a href="${wd.wp}" target="_blank">Wikipedia</a>`:"";
+    line.bindPopup(`<b>${name}</b><br>${wpLink} ${wdLink}<br>
+      <small>OSM-id: ${el.id}</small><br>
+      <button onclick="markAsTraveled(${el.id})">Markera som åkt</button>`);
+  });
+})();
+
+// === Markera som åkt ===
+function markAsTraveled(osmId){
+  railLayer.eachLayer(layer=>{
+    if(layer.osm_id===osmId){
+      const latlngs=layer.getLatLngs();
+      L.polyline(latlngs,{color:'blue',weight:4}).addTo(traveledLayer);
+      saveTraveled(osmId,latlngs);
     }
+  });
+  map.closePopup();
+}
 
-    async function fetchWikidataMap(){
-      const q=`SELECT ?item ?itemLabel ?osmid ?wp WHERE {
-        ?item wdt:P31 wd:Q728937; wdt:P17 wd:Q34;
-              wdt:P402|wdt:P10689 ?osmid.
-        OPTIONAL{?wp schema:about ?item;schema:isPartOf <https://sv.wikipedia.org/>.}
-        SERVICE wikibase:label { bd:serviceParam wikibase:language "sv,en". }
-      }`;
-      const url="https://query.wikidata.org/sparql?format=json&query="+encodeURIComponent(q);
-      const res=await fetch(url);
-      const json=await res.json();
-      const map={};
-      json.results.bindings.forEach(b=>{
-        const osm=b.osmid.value;
-        map[osm]={label:b.itemLabel?.value||"Okänd linje",item:b.item.value,wp:b.wp?.value||null};
-      });
-      return map;
-    }
+function saveTraveled(osmId,latlngs){
+  let traveled=JSON.parse(localStorage.getItem('traveledLines')||'[]');
+  let geometries=JSON.parse(localStorage.getItem('traveledGeo')||'{}');
+  if(!traveled.includes(osmId)){
+    traveled.push(osmId);
+    geometries[osmId]=latlngs.map(c=>[c.lat,c.lng]);
+    localStorage.setItem('traveledLines',JSON.stringify(traveled));
+    localStorage.setItem('traveledGeo',JSON.stringify(geometries));
+  }
+  const now=new Date().toISOString().split("T")[0];
+  localStorage.setItem('lastSaved',now);
+  updateLastSaved();
+}
 
-    (async function init(){
-      document.getElementById("version").textContent=VERSION;
-      updateLastSaved(); renderLocos();
+// === Export GeoJSON ===
+document.getElementById("exportBtn").addEventListener("click",()=>{
+  const geometries=JSON.parse(localStorage.getItem('traveledGeo')||'{}');
+  const features=Object.keys(geometries).map(osmId=>({
+    type:"Feature",properties:{osm_id:osmId},
+    geometry:{type:"LineString",coordinates:geometries[osmId].map(c=>[c[1],c[0]])}
+  }));
+  const geojson={type:"FeatureCollection",features};
+  const blob=new Blob([JSON.stringify(geojson,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=`my_railways_${new Date().toISOString().split("T")[0]}.geojson`;
+  a.click();
+});
 
-      const [osmElements,wdMap]=await Promise.all([fetchOSM(),fetchWikidataMap()]);
-      const traveled=JSON.parse(localStorage.getItem('traveledLines')||'[]');
+// === Datum + lokhantering ===
+function updateLastSaved(){
+  const last=localStorage.getItem('lastSaved');
+  document.getElementById('lastSaved').textContent=last?last:'–';
+}
 
-      osmElements.forEach(el=>{
-        if(!el.geometry)return;
-        const coords=el.geometry.map(p=>[p.lat,p.lon]);
-        const color=traveled.includes(el.id)?'blue':'gray';
-        const line=L.polyline(coords,{color,weight:3,opacity:0.7}).addTo(railLayer);
-        line.osm_id=el.id; line.osm_geometry=coords;
-        const wd=wdMap[el.id?.toString()];
-        const name=wd?wd.label:"Okänd järnväg";
-        const wdLink=wd?`<a href="${wd.item}" target="_blank">Wikidata</a>`:"";
-        const wpLink=wd?.wp?`<a href="${wd.wp}" target="_blank">Wikipedia</a>`:"";
-        line.bindPopup(`<b>${name}</b><br>${wpLink} ${wdLink}<br>
-          <small>OSM-id: ${el.id}</small><br>
-          <button onclick="markAsTraveled(${el.id})">Markera som åkt</button>`);
-      });
-    })();
-
-    // === Markera åkt ===
-    function markAsTraveled(osmId){
-      railLayer.eachLayer(layer=>{
-        if(layer.osm_id===osmId){
-          const latlngs=layer.getLatLngs();
-          L.polyline(latlngs,{color:'blue',weight:4}).addTo(traveledLayer);
-          saveTraveled(osmId,latlngs);
-        }
-      });
-      map.closePopup();
-    }
-
-    function saveTraveled(osmId,latlngs){
-      let traveled=JSON.parse(localStorage.getItem('traveledLines')||'[]');
-      let geometries=JSON.parse(localStorage.getItem('traveledGeo')||'{}');
-      if(!traveled.includes(osmId)){
-        traveled.push(osmId);
-        geometries[osmId]=latlngs.map(c=>[c.lat,c.lng]);
-        localStorage.setItem('traveledLines',JSON.stringify(traveled));
-        localStorage.setItem('traveledGeo',JSON.stringify(geometries));
-      }
-      const now=new Date().toISOString().split("T")[0];
-      localStorage.setItem('lastSaved',now);
-      updateLastSaved();
-    }
-
-    // === Export ===
-    document.getElementById("exportBtn").addEventListener("click",exportGeoJSON);
-    function exportGeoJSON(){
-      const geometries=JSON.parse(localStorage.getItem('traveledGeo')||'{}');
-      const features=Object.keys(geometries).map(osmId=>({
-        type:"Feature",
-        properties:{osm_id:osmId},
-        geometry:{type:"LineString",coordinates:geometries[osmId].map(c=>[c[1],c[0]])}
-      }));
-      const geojson={type:"FeatureCollection",features};
-      const blob=new Blob([JSON.stringify(geojson,null,2)],{type:"application/json"});
-      const url=URL.createObjectURL(blob);
-      const a=document.createElement("a");
-      a.href=url; a.download=`my_railways_${new Date().toISOString().split("T")[0]}.geojson`;
-      a.click(); URL.revokeObjectURL(url);
-    }
-
-    // === Datum ===
-    function updateLastSaved(){
-      const last=localStorage.getItem('lastSaved');
-      document.getElementById('lastSaved').textContent=last?last:'–';
-    }
-
-    // === Lokhantering ===
-    document.getElem
+document.getElementById("addLocoBtn").addEventListener("click",addLoco);
+function addLoco(){
+  const sel=document.getElementById("lokSelector");
+  const loco=sel.value;if(!loco)return;
+  let locos=JSON.parse(localStorage.getItem('myLocos')||'[]');
+  if(!locos.includes(loco)){
+    locos.push(loco);
+    localStorage.setItem('myLocos',JSON.stringify(locos));
+    renderLocos();
+  }
+  sel.value="";
+}
+function renderLocos(){
+  const list=document.getElementById("locoList");
+  const locos=JSON.parse(localStorage.getItem
