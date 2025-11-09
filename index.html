@@ -104,4 +104,118 @@ async function fetchStations(){
       ?wp schema:about ?item;
           schema:isPartOf <https://sv.wikipedia.org/>.
     }
-    SERVICE wikibase:label { bd:serviceParam wikibase:la
+    SERVICE wikibase:label { bd:serviceParam wikibase:language "sv,en". }
+  }`;
+  const url="https://query.wikidata.org/sparql?format=json&query="+encodeURIComponent(query);
+  const res=await fetch(url);
+  return (await res.json()).results.bindings;
+}
+
+// === Hämta järnvägar (Overpass) ===
+const overpassQuery=`[out:json][timeout:60];
+  area["name"="Sweden"]->.a;
+  (relation["railway"="rail"](area.a);way["railway"="rail"](area.a););
+  out geom;`;
+async function fetchOSM(){
+  const r=await fetch("https://overpass-api.de/api/interpreter",{method:"POST",body:overpassQuery});
+  return (await r.json()).elements;
+}
+
+// === Init ===
+(async function init(){
+  document.getElementById("version").textContent=VERSION;
+  updateLastSaved();renderLocos();
+  const [osmElements,stations]=await Promise.all([fetchOSM(),fetchStations()]);
+  const traveled=JSON.parse(localStorage.getItem('traveledLines')||'[]');
+
+  // Banor
+  osmElements.forEach(el=>{
+    if(!el.geometry)return;
+    const coords=el.geometry.map(p=>[p.lat,p.lon]);
+    const color=traveled.includes(el.id)?'blue':'gray';
+    const line=L.polyline(coords,{color,weight:3,opacity:0.7}).addTo(railLayer);
+    line.osm_id=el.id;
+    line.bindPopup(`<b>Bana (OSM ${el.id})</b><br><button onclick="markAsTraveled(${el.id})">Markera som åkt</button>`);
+  });
+
+  // Stationer
+  stations.forEach(st=>{
+    if(!st.coord)return;
+    const [lat,lon]=st.coord.value.replace("Point(","").replace(")","").split(" ");
+    const wp=st.wp?.value||null;
+    const bild=st.bild?.value||null;
+    const marker=L.circleMarker([lon,lat],{radius:4,color:'red',fillOpacity:0.8});
+    const popup=`
+      <b>${st.itemLabel.value}</b><br>
+      ${bild?`<img src="${bild}" class="station-img"><br>`:""}
+      <a href="${st.item.value}" target="_blank">Wikidata</a><br>
+      ${wp?`<a href="${wp}" target="_blank">Wikipedia (sv)</a>`:""}
+    `;
+    marker.bindPopup(popup);
+    marker.addTo(stationLayer);
+  });
+})();
+
+// === Markera åkt ===
+function markAsTraveled(osmId){
+  railLayer.eachLayer(l=>{
+    if(l.osm_id===osmId){
+      const latlngs=l.getLatLngs();
+      L.polyline(latlngs,{color:'blue',weight:4}).addTo(traveledLayer);
+      saveTraveled(osmId,latlngs);
+    }
+  });
+  map.closePopup();
+}
+function saveTraveled(osmId,latlngs){
+  let t=JSON.parse(localStorage.getItem('traveledLines')||'[]');
+  let g=JSON.parse(localStorage.getItem('traveledGeo')||'{}');
+  if(!t.includes(osmId)){
+    t.push(osmId);g[osmId]=latlngs.map(c=>[c.lat,c.lng]);
+    localStorage.setItem('traveledLines',JSON.stringify(t));
+    localStorage.setItem('traveledGeo',JSON.stringify(g));
+  }
+  localStorage.setItem('lastSaved',new Date().toISOString().split("T")[0]);
+  updateLastSaved();
+}
+
+// === Export ===
+document.getElementById("exportBtn").addEventListener("click",()=>{
+  const g=JSON.parse(localStorage.getItem('traveledGeo')||'{}');
+  const f=Object.keys(g).map(id=>({type:"Feature",properties:{osm_id:id},
+    geometry:{type:"LineString",coordinates:g[id].map(c=>[c[1],c[0]])}}));
+  const blob=new Blob([JSON.stringify({type:"FeatureCollection",features:f},null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=`my_railways_${new Date().toISOString().split("T")[0]}.geojson`;
+  a.click();
+});
+
+// === Datum & lok ===
+function updateLastSaved(){document.getElementById('lastSaved').textContent=localStorage.getItem('lastSaved')||'–';}
+document.getElementById("addLocoBtn").addEventListener("click",()=>{
+  const s=document.getElementById("lokSelector");const v=s.value;if(!v)return;
+  let locos=JSON.parse(localStorage.getItem('myLocos')||'[]');
+  if(!locos.includes(v)){locos.push(v);localStorage.setItem('myLocos',JSON.stringify(locos));renderLocos();}
+  s.value="";
+});
+function renderLocos(){
+  const list=document.getElementById("locoList");
+  const locos=JSON.parse(localStorage.getItem('myLocos')||'[]');
+  list.innerHTML=locos.length?locos.map(l=>`<li>${l}</li>`).join(''):"<li><i>Inga sparade ännu</i></li>";
+}
+
+// === Legend ===
+const legend=L.control({position:'bottomleft'});
+legend.onAdd=function(){
+  const div=L.DomUtil.create('div','legend');
+  div.innerHTML=`<b>Förklaring</b><br>
+  <span style="background:gray"></span>Ej åkt<br>
+  <span style="background:blue"></span>Åkt<br>
+  <span style="background:red"></span>Station`;
+  return div;
+};
+legend.addTo(map);
+</script>
+</body>
+</html>
