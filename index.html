@@ -22,23 +22,32 @@
       text-align: right;
       line-height: 1.4em;
     }
-    .infobox small {
-      color: #555;
+    .infobox small { color: #555; }
+    .infobox button {
+      margin-top: 5px;
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 5px;
+      cursor: pointer;
     }
+    .infobox button:hover { background: #0056b3; }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
-  <!-- Infobox visas över kartan -->
+  <!-- Infobox -->
   <div class="infobox" id="infobox">
     <b>Järnvägskarta</b><br>
-    Version: <span id="version">1.2</span><br>
-    <small>Senast sparad: <span id="lastSaved">–</span></small>
+    Version: <span id="version">1.3</span><br>
+    <small>Senast sparad: <span id="lastSaved">–</span></small><br>
+    <button id="exportBtn">Exportera GeoJSON</button>
   </div>
 
   <script>
-    const VERSION = "1.2";
+    const VERSION = "1.3";
     const map = L.map('map', { center: [60.0, 16.5], zoom: 6 });
 
     // ===== 🗺️ Baslager =====
@@ -60,10 +69,8 @@
       })
     };
 
-    // Standard-bakgrund
     baselayers["OpenRailwayMap"].addTo(map);
 
-    // Lager för järnvägar
     const railLayer = L.layerGroup().addTo(map);
     const traveledLayer = L.layerGroup().addTo(map);
 
@@ -129,6 +136,7 @@
         const color = traveled.includes(el.id) ? 'blue' : 'gray';
         const line = L.polyline(coords, { color, weight: 3, opacity: 0.7 }).addTo(railLayer);
         line.osm_id = el.id;
+        line.osm_geometry = coords;
 
         const wd = wdMap[el.id?.toString()];
         const name = wd ? wd.label : "Okänd järnväg";
@@ -143,7 +151,6 @@
         `);
       });
 
-      // Lägg till kontroll för bas- och överlager
       L.control.layers(baselayers, {
         "Järnvägar (ej åkta)": railLayer,
         "Åkta linjer": traveledLayer
@@ -156,24 +163,56 @@
         if (layer.osm_id === osmId) {
           const latlngs = layer.getLatLngs();
           L.polyline(latlngs, { color: 'blue', weight: 4 }).addTo(traveledLayer);
-          saveTraveled(osmId);
+          saveTraveled(osmId, latlngs);
         }
       });
       map.closePopup();
     }
 
-    function saveTraveled(osmId) {
-      const traveled = JSON.parse(localStorage.getItem('traveledLines') || '[]');
+    function saveTraveled(osmId, latlngs) {
+      let traveled = JSON.parse(localStorage.getItem('traveledLines') || '[]');
+      let geometries = JSON.parse(localStorage.getItem('traveledGeo') || '{}');
+
       if (!traveled.includes(osmId)) {
         traveled.push(osmId);
+        geometries[osmId] = latlngs.map(c => [c.lat, c.lng]);
         localStorage.setItem('traveledLines', JSON.stringify(traveled));
+        localStorage.setItem('traveledGeo', JSON.stringify(geometries));
       }
       const now = new Date().toISOString().split("T")[0];
       localStorage.setItem('lastSaved', now);
       updateLastSaved();
     }
 
-    // ===== Datum i infobox =====
+    // ===== GeoJSON Export =====
+    document.getElementById("exportBtn").addEventListener("click", exportGeoJSON);
+
+    function exportGeoJSON() {
+      const geometries = JSON.parse(localStorage.getItem('traveledGeo') || '{}');
+      const features = Object.keys(geometries).map(osmId => ({
+        type: "Feature",
+        properties: { osm_id: osmId },
+        geometry: {
+          type: "LineString",
+          coordinates: geometries[osmId].map(c => [c[1], c[0]]) // lng,lat
+        }
+      }));
+
+      const geojson = {
+        type: "FeatureCollection",
+        features: features
+      };
+
+      const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `my_railways_${new Date().toISOString().split("T")[0]}.geojson`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // ===== Datum =====
     function updateLastSaved() {
       const last = localStorage.getItem('lastSaved');
       document.getElementById('lastSaved').textContent = last ? last : '–';
