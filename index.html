@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <title>Min järnvägskarta</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #map { height: 100%; }
+    .legend { background: white; padding: 10px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <script>
+    // Initiera kartan
+    const map = L.map('map').setView([59.33, 18.07], 6);
+
+    // OpenRailwayMap tiles
+    L.tileLayer('https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openrailwaymap.org/">OpenRailwayMap</a> & OSM contributors'
+    }).addTo(map);
+
+    // Lager för "mina åkta banor"
+    const traveledLayer = L.layerGroup().addTo(map);
+
+    // Exempeldata: en bana du har åkt på (Stockholm–Uppsala)
+    const exampleLine = [
+      [59.33, 18.07], // Stockholm
+      [59.86, 17.64]  // Uppsala
+    ];
+    const traveledLine = L.polyline(exampleLine, { color: 'blue', weight: 4 }).addTo(traveledLayer);
+
+    traveledLine.bindPopup("Åkt: Stockholm–Uppsala 🚆");
+
+    // Klickfunktion: markera som åkt
+    map.on('click', function(e) {
+      const marker = L.circleMarker(e.latlng, { radius: 5, color: 'blue' })
+        .addTo(traveledLayer)
+        .bindPopup('Du klickade här - markerad som åkt!');
+    });
+
+    // Kontroll
+    L.control.layers(null, { 'Åkta banor': traveledLayer }).addTo(map);
+  </script>
+</body>
+</html>
