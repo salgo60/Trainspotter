@@ -1,56 +1,114 @@
 <!DOCTYPE html>
 <html lang="sv">
 <head>
-  <meta charset="UTF-8">
-  <title>Min järnvägskarta</title>
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <title>Mina åkta järnvägar</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
     html, body { height: 100%; margin: 0; }
-    #map { height: 100%; }
-    .legend { background: white; padding: 10px; border-radius: 8px; }
+    #map { height: 100%; width: 100%; }
+    .legend {
+      background: white; padding: 8px; border-radius: 8px;
+      font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .legend span { display: inline-block; width: 15px; height: 15px; margin-right: 5px; }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
   <script>
     // Initiera kartan
-    const map = L.map('map').setView([59.33, 18.07], 6);
+    const map = L.map('map').setView([60.0, 16.5], 6);
 
-    // OpenRailwayMap tiles
+    // Bakgrund: OpenRailwayMap
     L.tileLayer('https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openrailwaymap.org/">OpenRailwayMap</a> & OSM contributors'
     }).addTo(map);
 
-    // Lager för "mina åkta banor"
+    // Lager för järnvägar
+    const railLayer = L.layerGroup().addTo(map);
     const traveledLayer = L.layerGroup().addTo(map);
 
-    // Exempeldata: en bana du har åkt på (Stockholm–Uppsala)
-    const exampleLine = [
-      [59.33, 18.07], // Stockholm
-      [59.86, 17.64]  // Uppsala
-    ];
-    const traveledLine = L.polyline(exampleLine, { color: 'blue', weight: 4 }).addTo(traveledLayer);
+    // Hämta järnvägslinjer från Overpass API (Sverige)
+    const query = `
+      [out:json][timeout:60];
+      area["name"="Sweden"]->.searchArea;
+      way["railway"="rail"](area.searchArea);
+      out geom;
+    `;
 
-    traveledLine.bindPopup("Åkt: Stockholm–Uppsala 🚆");
+    fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      body: query
+    })
+      .then(res => res.json())
+      .then(data => {
+        data.elements.forEach(el => {
+          if (el.type === "way" && el.geometry) {
+            const coords = el.geometry.map(p => [p.lat, p.lon]);
+            const line = L.polyline(coords, { color: 'gray', weight: 3, opacity: 0.6 }).addTo(railLayer);
 
-    // Klickfunktion: markera som åkt
-    map.on('click', function(e) {
-      const marker = L.circleMarker(e.latlng, { radius: 5, color: 'blue' })
-        .addTo(traveledLayer)
-        .bindPopup('Du klickade här - markerad som åkt!');
-    });
+            line.bindPopup(`
+              <b>OSM-id:</b> ${el.id}<br>
+              <button onclick="markAsTraveled(${el.id})">Markera som åkt</button>
+            `);
 
-    // Kontroll
-    L.control.layers(null, { 'Åkta banor': traveledLayer }).addTo(map);
+            line.osm_id = el.id; // spara ID för referens
+          }
+        });
+      })
+      .catch(err => {
+        console.error("Fel vid hämtning av järnvägar:", err);
+      });
+
+    // Funktion för att markera linje som åkt
+    function markAsTraveled(osmId) {
+      // hitta linjen i railLayer
+      railLayer.eachLayer(layer => {
+        if (layer.osm_id === osmId) {
+          const latlngs = layer.getLatLngs();
+          L.polyline(latlngs, { color: 'blue', weight: 4 }).addTo(traveledLayer);
+          map.closePopup();
+          saveTraveled(osmId);
+        }
+      });
+    }
+
+    // Spara åkta linjer i localStorage
+    function saveTraveled(osmId) {
+      const traveled = JSON.parse(localStorage.getItem('traveledLines') || '[]');
+      if (!traveled.includes(osmId)) {
+        traveled.push(osmId);
+        localStorage.setItem('traveledLines', JSON.stringify(traveled));
+      }
+    }
+
+    // Ladda tidigare sparade linjer
+    function loadTraveled() {
+      const traveled = JSON.parse(localStorage.getItem('traveledLines') || '[]');
+      console.log("Tidigare åkta linjer:", traveled);
+    }
+
+    loadTraveled();
+
+    // Legend
+    const legend = L.control({ position: 'bottomleft' });
+    legend.onAdd = function(map) {
+      const div = L.DomUtil.create('div', 'legend');
+      div.innerHTML = `
+        <b>Förklaring</b><br>
+        <span style="background:gray"></span> Ej åkt<br>
+        <span style="background:blue"></span> Åkt
+      `;
+      return div;
+    };
+    legend.addTo(map);
+
   </script>
 </body>
 </html>
